@@ -27,7 +27,7 @@ monitoring_collection = cp['DATABASE']['MonitoringCollection']
 
 CRAWLER_SLEEP_TIME = 60 * 30
 
-telegram_message_template = 'New transaction {}: {0:.4f} XSN'
+telegram_message_template = 'New transaction {}: {} XSN'
 telegram_bot_token = cp['TELEGRAM']['SecretKey']
 
 add_message_text = 'Enter address for '
