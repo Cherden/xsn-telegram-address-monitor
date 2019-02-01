@@ -30,7 +30,7 @@ CRAWLER_SLEEP_TIME = 60 * 30
 telegram_message_template = 'New transaction {}: {0:.4f} XSN'
 telegram_bot_token = cp['TELEGRAM']['SecretKey']
 
-add_message_text = 'Enter address for "{}"'
+add_message_text = 'Enter address for '
 add_name_message_text = 'Enter monitor name'
 
 last_checked = datetime.datetime.utcnow()
@@ -106,7 +106,7 @@ class RewardCrawler(threading.Thread):
                     entry['payout_info']['total_transactions'] = info_json['total']
 
                 db.update(self.collection, {'_id': entry['_id']}, entry)
-                sleep(0.1)
+                time.sleep(0.1)
 
             global last_checked
             last_checked = datetime.datetime.utcnow()
@@ -156,24 +156,22 @@ def message_handler(bot, update):
 
     if update.message.reply_to_message.text == add_name_message_text:
         # Call add method
-        update.message.reply_text(add_message_text.format(update.message.text), reply_markup=ForceReply())
+        update.message.reply_text(add_message_text + '"' + update.message.text + '"', reply_markup=ForceReply())
 
     if add_message_text in update.message.reply_to_message.text:
         message = update.message.reply_to_message.text
-        print(message)
         if message.count('"') != 2:
             update.message.reply_text('Invalid character in monitor name.')
             return
 
-        name = re.search('.*"(.*)"(.*)', message).group(1)
+        name = re.search('.*"(.*)".*', message).group(1)
         address = update.message.text
-        print(name + " " + address)
         balance, success = check_monitor_address(address)
         if not success:
             update.message.reply_text("Invalid Address.")
             return
 
-        update.message.reply_text('Added monitor ' + name + ' for address ' + address)
+        update.message.reply_text('Added monitor "' + name + '" for address ' + address)
         add_monitor(update.message['chat']['id'], address, name, balance)
 
 
