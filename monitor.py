@@ -144,6 +144,9 @@ def print_status(bot, chat_id, monitor_list):
 
 
 def message_handler(bot, update):
+    if not update.message.reply_to_message.text:
+        return
+
     if update.message.reply_to_message.text == add_message_text:
         # Call add method
         if not check_monitor_address(update.message.text):
@@ -158,7 +161,7 @@ def message_handler(bot, update):
 
 
 def start(bot, update):
-    message = "Hey " + update.message['chat']['username'] + "!"
+    message = "XSN TPoS Monitoring Menu:"
 
     keyboard = [[InlineKeyboardButton("Add monitor", callback_data='add')],
                 [InlineKeyboardButton("My monitors", callback_data='list')],
