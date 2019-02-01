@@ -26,7 +26,7 @@ monitoring_collection = cp['DATABASE']['MonitoringCollection']
 
 CRAWLER_SLEEP_TIME = 60 * 30
 
-telegram_message_template = 'New payout {} (XSN): {}'
+telegram_message_template = 'New payout {}: {} XSN'
 telegram_bot_token = cp['TELEGRAM']['SecretKey']
 
 add_message_text = 'Enter new address'
@@ -128,9 +128,10 @@ def print_status(bot, chat_id, monitor_list):
     for monitor in monitor_list:
         message += '\n'
         message += str(monitor['name'])
-        message += ' (Total payout: '
-        message += str(monitor['payout_info']['total_payout'])
-        message += ' XSN):\nLast payout: '
+        message += ' (' + monitor['address'] + '):'
+        message += '\nTotal payout: '
+        message += str(monitor['payout_info']['total_payout']) + ' XSN'
+        message += '\nLast payout: '
         if len(monitor['payout_info']['payouts']) == 0:
             message += 'Never'
         else:
