@@ -124,7 +124,7 @@ def menu(bot, update):
 
 
 def print_status(bot, chat_id, monitor_list):
-    message = "Status of your TPoS monitors: \n"
+    message = "Status of your XSN Address monitors: \n"
     for monitor in monitor_list:
         message += '\n'
         message += str(monitor['name'])
@@ -161,7 +161,7 @@ def message_handler(bot, update):
 
 
 def start(bot, update):
-    message = "XSN TPoS Monitoring Menu:"
+    message = "XSN Address Monitoring Menu:"
 
     keyboard = [[InlineKeyboardButton("Add monitor", callback_data='add')],
                 [InlineKeyboardButton("My monitors", callback_data='list')],
