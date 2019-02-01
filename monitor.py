@@ -8,6 +8,7 @@ import time
 import requests
 import logging
 import datetime
+import re
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -26,11 +27,11 @@ monitoring_collection = cp['DATABASE']['MonitoringCollection']
 
 CRAWLER_SLEEP_TIME = 60 * 30
 
-telegram_message_template = 'New payout {}: {} XSN'
+telegram_message_template = 'New transaction {}: {0:.4f} XSN'
 telegram_bot_token = cp['TELEGRAM']['SecretKey']
 
-add_message_text = 'Enter new address'
-add_name_message_text = 'Enter monitor name for '
+add_message_text = 'Enter address for "{}"'
+add_name_message_text = 'Enter monitor name'
 
 last_checked = datetime.datetime.utcnow()
 
@@ -52,7 +53,10 @@ def check_monitor_address(address):
     ret_json = requests.get(url).json()
 
     # Address Format invalid or available funds on address = 0
-    return not (("errors" in ret_json) or (ret_json['available'] == 0))
+    if ("errors" in ret_json) or ret_json['available'] == 0:
+        return 0, False
+    else:
+        return ret_json['available'], True
 
 
 class RewardCrawler(threading.Thread):
@@ -92,15 +96,18 @@ class RewardCrawler(threading.Thread):
                                       'received': data['received']}
                         entry['payout_info']['payouts'].append(new_payout)
 
-                        received = data['received'] - data['sent']
+                        received = round(data['received'] - data['sent'], 7)
                         entry['payout_info']['total_payout'] = entry['payout_info']['total_payout'] + received
+                        entry['balance'] += received
 
-                        message = telegram_message_template.format(entry['name'], received)
+                        message = telegram_message_template.format(entry['name'], float(received))
                         self.telegram_bot.send_message(chat_id=entry['telegram_id'], text=message)
 
                     entry['payout_info']['total_transactions'] = info_json['total']
 
                 db.update(self.collection, {'_id': entry['_id']}, entry)
+                sleep(0.1)
+
             global last_checked
             last_checked = datetime.datetime.utcnow()
             time.sleep(CRAWLER_SLEEP_TIME)
@@ -110,7 +117,7 @@ def menu(bot, update):
     query = update.callback_query
 
     if format(query.data) == 'add':
-        bot.send_message(query.message.chat_id, add_message_text, reply_markup=ForceReply())
+        bot.send_message(query.message.chat_id, add_name_message_text, reply_markup=ForceReply())
     elif format(query.data) == 'list':
         monitor_list = get_monitors(query.message.chat_id)
         print_status(bot, query.message.chat_id, monitor_list)
@@ -129,9 +136,9 @@ def print_status(bot, chat_id, monitor_list):
         message += '\n'
         message += str(monitor['name'])
         message += ' (' + monitor['address'] + '):'
-        message += '\nTotal payout: '
-        message += str(monitor['payout_info']['total_payout']) + ' XSN'
-        message += '\nLast payout: '
+        message += '\nBalance: '
+        message += str(monitor['balance']) + ' XSN'
+        message += '\nLast transaction: '
         if len(monitor['payout_info']['payouts']) == 0:
             message += 'Never'
         else:
@@ -144,20 +151,28 @@ def print_status(bot, chat_id, monitor_list):
 
 
 def message_handler(bot, update):
-    if not update.message.reply_to_message.text:
+    if update.message.reply_to_message is None:
         return
 
-    if update.message.reply_to_message.text == add_message_text:
+    if update.message.reply_to_message.text == add_name_message_text:
         # Call add method
-        if not check_monitor_address(update.message.text):
+        update.message.reply_text(add_message_text.format(update.message.text), reply_markup=ForceReply())
+
+    if add_message_text in update.message.reply_to_message.text:
+        message = update.message.reply_to_message.text
+        if message.count('"') != 2:
+            update.message.reply_text('Invalid character in monitor name.')
+            return
+
+        name = re.search('.*"(.*)"(.*)', message).group(1)
+        address = update.message.text
+        balance, success = check_monitor_address(address)
+        if not success:
             update.message.reply_text("Invalid Address.")
-        else:
-            update.message.reply_text(add_name_message_text + update.message.text, reply_markup=ForceReply())
-    if add_name_message_text in update.message.reply_to_message.text:
-        address = update.message.reply_to_message.text.split()[-1]
-        name = update.message.text
+            return
+
         update.message.reply_text('Added monitor ' + name + ' for address ' + address)
-        add_monitor(update.message['chat']['id'], address, name)
+        add_monitor(update.message['chat']['id'], address, name, balance)
 
 
 def start(bot, update):
@@ -172,11 +187,12 @@ def start(bot, update):
     update.message.reply_text(message, reply_markup=reply_markup)
 
 
-def add_monitor(chat_id, address, name):
+def add_monitor(chat_id, address, name, balance):
     new_monitor = {
         'name': name,
         'address': address,
         'telegram_id': chat_id,
+        'balance': balance,
         'payout_info': create_payout_info(address)
     }
 
