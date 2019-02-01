@@ -129,8 +129,6 @@ def menu(bot, update):
 
         bot.send_message(query.message.chat_id, 'Monitor deleted!')
 
-    print(query.answer())
-
 
 def print_status(bot, chat_id, monitor_list):
     message = "Status of your XSN Address monitors: \n"
