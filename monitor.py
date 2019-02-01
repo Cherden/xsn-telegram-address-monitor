@@ -101,6 +101,7 @@ class RewardCrawler(threading.Thread):
                     entry['payout_info']['total_transactions'] = info_json['total']
 
                 db.update(self.collection, {'_id': entry['_id']}, entry)
+            global last_checked
             last_checked = datetime.datetime.utcnow()
             time.sleep(CRAWLER_SLEEP_TIME)
 
