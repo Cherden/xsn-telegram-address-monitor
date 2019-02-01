@@ -160,12 +160,14 @@ def message_handler(bot, update):
 
     if add_message_text in update.message.reply_to_message.text:
         message = update.message.reply_to_message.text
+        print(message)
         if message.count('"') != 2:
             update.message.reply_text('Invalid character in monitor name.')
             return
 
         name = re.search('.*"(.*)"(.*)', message).group(1)
         address = update.message.text
+        print(name + " " + address)
         balance, success = check_monitor_address(address)
         if not success:
             update.message.reply_text("Invalid Address.")
