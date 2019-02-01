@@ -135,7 +135,7 @@ def print_status(bot, chat_id, monitor_list):
         if len(monitor['payout_info']['payouts']) == 0:
             message += 'Never'
         else:
-            message += str(monitor['payout_info']['payouts'][-1]['time'])
+            message += str(datetime.datetime.utcfromtimestamp(int(monitor['payout_info']['payouts'][-1]['time'])).strftime('%B %d %Y - %H:%M:%S'))
         message += '\nLast checked: '
         message += str(last_checked.strftime('%B %d %Y - %H:%M:%S'))
         message += '\n'
