@@ -25,38 +25,50 @@ db.connect(cp['DATABASE']['Address'], cp['DATABASE']['Name'])
 
 monitoring_collection = cp['DATABASE']['MonitoringCollection']
 
-CRAWLER_SLEEP_TIME = 60 * 30
+CRAWLER_SLEEP_TIME = 60
 
-telegram_message_template = 'New transaction {}: {} XSN'
+telegram_message_template = 'New transaction for "{}" ({}): {} XSN'
 telegram_bot_token = cp['TELEGRAM']['SecretKey']
 
+DATE_FORMAT = '%d/%m/%Y %H:%M:%S'
 add_message_text = 'Enter address for '
 add_name_message_text = 'Enter monitor name'
 
 last_checked = datetime.datetime.utcnow()
 
 
-def create_payout_info(address):
-    url = 'https://xsnexplorer.io/api/addresses/{}/transactions'.format(address)
-    info_json = requests.get(url).json()
-    payout_info = {
-        'total_transactions': info_json['total'],
-        'total_payout': 0,
-        'payouts': []
-    }
-
-    return payout_info
+def timestamp_to_date(timestamp):
+    return str(datetime.datetime.utcfromtimestamp(timestamp).strftime(DATE_FORMAT))
 
 
-def check_monitor_address(address):
+def create_new_monitor(address):
     url = 'https://xsnexplorer.io/api/addresses/{}'.format(address)
     ret_json = requests.get(url).json()
 
     # Address Format invalid or available funds on address = 0
     if ("errors" in ret_json) or ret_json['available'] == 0:
-        return 0, False
-    else:
-        return ret_json['available'], True
+        return {}, False
+
+    balance = ret_json['available']
+
+    url = 'https://xsnexplorer.io/api/addresses/{}/transactions'.format(address)
+    transactions_json = requests.get(url).json()
+
+    total_transactions = transactions_json['total']
+    last_transaction = 0
+    if total_transactions != 0 and transactions_json['data']:
+        last_transaction = int(transactions_json['data'][0]['time'])
+
+    new_monitor = {
+        'name': '',
+        'address': address,
+        'telegram_id': 0,
+        'balance': balance,
+        'total_transactions': total_transactions,
+        'last_transaction': last_transaction
+    }
+
+    return new_monitor, True
 
 
 class RewardCrawler(threading.Thread):
@@ -86,24 +98,25 @@ class RewardCrawler(threading.Thread):
                 url = 'https://xsnexplorer.io/api/addresses/{}/transactions'.format(address)
                 info_json = requests.get(url).json()
 
-                total_transactions = entry['payout_info']['total_transactions']
+                total_transactions = entry['total_transactions']
                 new_transactions = min(info_json['total'] - total_transactions, len(info_json['data']))
                 if new_transactions > 0:
                     for i in range(new_transactions):
                         data = info_json['data'][i]
-                        new_payout = {'blockhash': data['blockhash'],
-                                      'time': data['time'],
-                                      'received': data['received']}
-                        entry['payout_info']['payouts'].append(new_payout)
 
+                        timestamp = int(data['time'])
                         received = round(data['received'] - data['sent'], 7)
-                        entry['payout_info']['total_payout'] = entry['payout_info']['total_payout'] + received
-                        entry['balance'] += received
 
-                        message = telegram_message_template.format(entry['name'], float(received))
+                        entry['balance'] += received
+                        if entry['last_transaction'] < timestamp:
+                            entry['last_transaction'] = timestamp
+
+                        message = telegram_message_template.format(entry['name'],
+                                                                   timestamp_to_date(timestamp),
+                                                                   float(received))
                         self.telegram_bot.send_message(chat_id=entry['telegram_id'], text=message)
 
-                    entry['payout_info']['total_transactions'] = info_json['total']
+                    entry['total_transactions'] = info_json['total']
 
                 db.update(self.collection, {'_id': entry['_id']}, entry)
                 time.sleep(0.1)
@@ -115,44 +128,49 @@ class RewardCrawler(threading.Thread):
 
 def menu(bot, update):
     query = update.callback_query
+    chat_id = query.message.chat_id
 
     if format(query.data) == 'add':
-        bot.send_message(query.message.chat_id, add_name_message_text, reply_markup=ForceReply())
+        bot.send_message(chat_id, add_name_message_text, reply_markup=ForceReply())
     elif format(query.data) == 'list':
-        monitor_list = get_monitors(query.message.chat_id)
-        print_status(bot, query.message.chat_id, monitor_list)
+        monitor_list = get_monitors(chat_id)
+
+        if not monitor_list:
+            bot.send_message(chat_id, 'You don\'t have any monitors active.')
+        else:
+            print_status(bot, chat_id, monitor_list)
     elif format(query.data) == 'delete':
-        delete_confirmation_message(bot, query.message.chat_id)
+        delete_confirmation_message(bot, chat_id)
     elif 'del_monitor_' in format(query.data):
         monitor_id = format(query.data).replace('del_monitor_', '')
         db.delete(monitoring_collection, {'_id': ObjectId(monitor_id)})
 
-        bot.send_message(query.message.chat_id, 'Monitor deleted!')
+        bot.send_message(chat_id, 'Monitor deleted!')
 
     query.answer()
 
 
 def print_status(bot, chat_id, monitor_list):
-    message = "Status of your XSN Address monitors: \n"
+    message = "Status of your XSN Address monitors:\n"
+    message += 'Last checked: ' + str(last_checked.strftime(DATE_FORMAT)) + '\n'
     for monitor in monitor_list:
         message += '\n'
-        message += str(monitor['name'])
-        message += ' (' + monitor['address'] + '):'
-        message += '\nBalance: '
-        message += str(monitor['balance']) + ' XSN'
-        message += '\nLast transaction: '
-        if len(monitor['payout_info']['payouts']) == 0:
+        message += str(monitor['name']) + ' (' + monitor['address'] + '):\n'
+        message += 'Balance: ' + str(monitor['balance']) + ' XSN\n'
+        message += 'Total transactions: ' + str(monitor['total_transactions']) + '\n'
+        message += 'Last transaction: '
+        if monitor['last_transaction'] == 0:
             message += 'Never'
         else:
-            message += str(datetime.datetime.utcfromtimestamp(int(monitor['payout_info']['payouts'][-1]['time'])).strftime('%B %d %Y - %H:%M:%S'))
-        message += '\nLast checked: '
-        message += str(last_checked.strftime('%B %d %Y - %H:%M:%S'))
+            message += timestamp_to_date(monitor['last_transaction'])
         message += '\n'
 
     bot.send_message(chat_id, message)
 
 
 def message_handler(bot, update):
+    del bot
+
     if update.message.reply_to_message is None:
         return
 
@@ -168,16 +186,22 @@ def message_handler(bot, update):
 
         name = re.search('.*"(.*)".*', message).group(1)
         address = update.message.text
-        balance, success = check_monitor_address(address)
+
+        new_monitor, success = create_new_monitor(address)
         if not success:
             update.message.reply_text("Invalid Address.")
             return
 
+        new_monitor['name'] = name
+        new_monitor['telegram_id'] = update.message['chat']['id']
+
         update.message.reply_text('Added monitor "' + name + '" for address ' + address)
-        add_monitor(update.message['chat']['id'], address, name, balance)
+        db.insert(monitoring_collection, new_monitor)
 
 
 def start(bot, update):
+    del bot
+
     message = "XSN Address Monitoring Menu:"
 
     keyboard = [[InlineKeyboardButton("Add monitor", callback_data='add')],
@@ -187,18 +211,6 @@ def start(bot, update):
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     update.message.reply_text(message, reply_markup=reply_markup)
-
-
-def add_monitor(chat_id, address, name, balance):
-    new_monitor = {
-        'name': name,
-        'address': address,
-        'telegram_id': chat_id,
-        'balance': balance,
-        'payout_info': create_payout_info(address)
-    }
-
-    db.insert(monitoring_collection, new_monitor)
 
 
 def delete_confirmation_message(bot, chat_id):
