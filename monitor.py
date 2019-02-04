@@ -50,8 +50,33 @@ def initialize_statistics():
     if success:
         bot_statistics['monitor_amount'] = len(monitors)
         for monitor in monitors:
-            if monitor['telegram_id'] not in bot_statistics['users']:
-                bot_statistics['users'].append(monitor['telegram_id'])
+            update_or_add_new_user_to_statistics(monitor['telegram_id'])
+
+
+def update_or_add_new_user_to_statistics(id):
+    # User doesn't already exist in statistics
+    if not any(users['id'] == id for users in bot_statistics['users']):
+        new_user = {'id': id, 'monitors': 1}
+        bot_statistics['users'].append(new_user)
+
+    # Increase number of monitors for user
+    for users in bot_statistics['users']:
+        if users['id'] == id:
+            users['monitors'] += 1
+            break
+
+
+def decrease_or_delete_user_from_statistics(id):
+    do_pop = -1
+    for users in bot_statistics['users']:
+        if users['id'] == id:
+            users['monitors'] -= 1
+            if users['monitors'] == 0:
+                do_pop = bot_statistics['users'].index(users)
+            break
+
+    if do_pop >= 0:
+        bot_statistics['users'].pop(do_pop)
 
 
 def timestamp_to_date(timestamp):
@@ -118,7 +143,7 @@ class RewardCrawler(threading.Thread):
                 total_transactions = entry['total_transactions']
                 new_transactions = min(info_json['total'] - total_transactions, len(info_json['data']))
                 if new_transactions > 0:
-                    for i in range(new_transactions):
+                    for i in reversed(range(new_transactions)):
                         data = info_json['data'][i]
 
                         timestamp = int(data['time'])
@@ -165,9 +190,15 @@ def menu(bot, update):
         delete_confirmation_message(bot, chat_id)
     elif 'del_monitor_' in format(query.data):
         monitor_id = format(query.data).replace('del_monitor_', '')
-        db.delete(monitoring_collection, {'_id': ObjectId(monitor_id)})
+        success, _ = db.find({'_id': ObjectId(monitor_id)}, many=False)
+        if success:
+            db.delete(monitoring_collection, {'_id': ObjectId(monitor_id)})
 
-        bot.send_message(chat_id, 'Monitor deleted!')
+            bot_statistics['monitor_amount'] -= 1
+            decrease_or_delete_user_from_statistics(chat_id)
+            bot.send_message(chat_id, 'Monitor deleted!')
+        else:
+            bot.send_message(chat_id, 'This monitor doesn\'t exist anymore.')
 
     query.answer()
 
@@ -222,8 +253,7 @@ def message_handler(bot, update):
 
         # update statistics
         bot_statistics['monitor_amount'] += 1
-        if new_monitor['telegram_id'] not in bot_statistics['users']:
-            bot_statistics['users'].append(new_monitor['telegram_id'])
+        update_or_add_new_user_to_statistics(new_monitor['telegram_id'])
 
 
 def start(bot, update):
