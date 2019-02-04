@@ -28,7 +28,7 @@ blockchain.connect(cp['POSTGRES'])
 
 monitoring_collection = cp['DATABASE']['MonitoringCollection']
 
-CRAWLER_SLEEP_TIME = 60 * 30
+CRAWLER_SLEEP_TIME = 30
 
 NEW_TRANSACTION_MESSAGE_TEMPLATE = 'New transaction for "{}" ({}): {} XSN'
 telegram_bot_token = cp['TELEGRAM']['SecretKey']

@@ -38,7 +38,7 @@ class BlockchainConnector:
             return int(self.cursor.fetchone()[0])
 
     def get_new_transactions(self, address, last_payout):
-        self.cursor.execute('SELECT sent, received, time FROM address_transaction_details WHERE address=\'' + address + '\' AND time >= ' + str(last_payout))
+        self.cursor.execute('SELECT sent, received, time FROM address_transaction_details WHERE address=\'' + address + '\' AND time > ' + str(last_payout))
         if self.cursor.rowcount == 0:
             return []
         else:
