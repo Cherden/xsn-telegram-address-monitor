@@ -91,7 +91,7 @@ def create_new_monitor(address):
     if not success:
         return {}, False
 
-    total_transactions = blockchain.get_total_transactions(address)
+    total_transactions = 0 # blockchain.get_total_transactions(address)
     last_transaction = blockchain.get_last_transaction(address)
 
     new_monitor = {
@@ -133,7 +133,7 @@ class RewardCrawler(threading.Thread):
 
                 for transaction in reversed(new_transactions):
                     timestamp = int(transaction[2])
-                    received = round(transaction[1] - transaction[0], 7)
+                    received = round(float(transaction[1]) - float(transaction[0]), 7)
 
                     entry['balance'] += received
                     if entry['last_transaction'] < timestamp:
@@ -144,7 +144,7 @@ class RewardCrawler(threading.Thread):
                                                                       float(received))
                     self.telegram_bot.send_message(chat_id=entry['telegram_id'], text=message)
 
-                entry['total_transactions'] = blockchain.get_total_transactions(entry['address'])
+                # entry['total_transactions'] = blockchain.get_total_transactions(entry['address'])
 
                 db.update(self.collection, {'_id': entry['_id']}, entry)
                 time.sleep(0.1)
@@ -196,7 +196,7 @@ def print_status(bot, chat_id, monitor_list):
         message += '\n'
         message += str(monitor['name']) + ' (' + monitor['address'] + '):\n'
         message += 'Balance: ' + str(monitor['balance']) + ' XSN\n'
-        message += 'Total transactions: ' + str(monitor['total_transactions']) + '\n'
+        # message += 'Total transactions: ' + str(monitor['total_transactions']) + '\n'
         message += 'Last transaction: '
         if monitor['last_transaction'] == 0:
             message += 'Never'
@@ -273,8 +273,8 @@ def delete_confirmation_message(bot, chat_id):
                      reply_markup=reply_markup)
 
 
-def get_monitors(tele_id):
-    success, result = db.find(monitoring_collection, {'telegram_id': tele_id}, many=True)
+def get_monitors(chat_id):
+    success, result = db.find(monitoring_collection, {'telegram_id': chat_id}, many=True)
 
     if not success:
         logger.warning('get_monitors caused error "%s"', success)
