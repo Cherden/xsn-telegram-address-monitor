@@ -190,7 +190,7 @@ def menu(bot, update):
         delete_confirmation_message(bot, chat_id)
     elif 'del_monitor_' in format(query.data):
         monitor_id = format(query.data).replace('del_monitor_', '')
-        success, _ = db.find({'_id': ObjectId(monitor_id)}, many=False)
+        success, _ = db.find(monitoring_collection, {'_id': ObjectId(monitor_id)}, many=False)
         if success:
             db.delete(monitoring_collection, {'_id': ObjectId(monitor_id)})
 
