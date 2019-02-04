@@ -25,16 +25,31 @@ db.connect(cp['DATABASE']['Address'], cp['DATABASE']['Name'])
 
 monitoring_collection = cp['DATABASE']['MonitoringCollection']
 
-CRAWLER_SLEEP_TIME = 60
+CRAWLER_SLEEP_TIME = 60 * 30
 
-telegram_message_template = 'New transaction for "{}" ({}): {} XSN'
+NEW_TRANSACTION_MESSAGE_TEMPLATE = 'New transaction for "{}" ({}): {} XSN'
 telegram_bot_token = cp['TELEGRAM']['SecretKey']
 
 DATE_FORMAT = '%d/%m/%Y %H:%M:%S'
-add_message_text = 'Enter address for '
-add_name_message_text = 'Enter monitor name'
+ADD_ADDRESS_MESSAGE = 'Enter address for '
+ADD_NAME_MESSAGE = 'Enter monitor name'
+STATISTICS_MESSAGE_TEMPLATE = 'This bot monitors {} addresses from {} users!'
 
 last_checked = datetime.datetime.utcnow()
+
+bot_statistics = {
+    'monitor_amount': 0,
+    'users': []
+}
+
+
+def initialize_statistics():
+    success, monitors = db.find(monitoring_collection, {}, many=True)
+    if success:
+        bot_statistics['monitor_amount'] = len(monitors)
+        for monitor in monitors:
+            if monitor['telegram_id'] not in bot_statistics['users']:
+                bot_statistics['users'].append(monitor['telegram_id'])
 
 
 def timestamp_to_date(timestamp):
@@ -111,9 +126,9 @@ class RewardCrawler(threading.Thread):
                         if entry['last_transaction'] < timestamp:
                             entry['last_transaction'] = timestamp
 
-                        message = telegram_message_template.format(entry['name'],
-                                                                   timestamp_to_date(timestamp),
-                                                                   float(received))
+                        message = NEW_TRANSACTION_MESSAGE_TEMPLATE.format(entry['name'],
+                                                                          timestamp_to_date(timestamp),
+                                                                          float(received))
                         self.telegram_bot.send_message(chat_id=entry['telegram_id'], text=message)
 
                     entry['total_transactions'] = info_json['total']
@@ -131,7 +146,7 @@ def menu(bot, update):
     chat_id = query.message.chat_id
 
     if format(query.data) == 'add':
-        bot.send_message(chat_id, add_name_message_text, reply_markup=ForceReply())
+        bot.send_message(chat_id, ADD_NAME_MESSAGE, reply_markup=ForceReply())
     elif format(query.data) == 'list':
         monitor_list = get_monitors(chat_id)
 
@@ -139,6 +154,11 @@ def menu(bot, update):
             bot.send_message(chat_id, 'You don\'t have any monitors active.')
         else:
             print_status(bot, chat_id, monitor_list)
+    elif format(query.data) == 'stats':
+        monitor_amount = bot_statistics['monitor_amount']
+        user_amount = len(bot_statistics['users'])
+
+        bot.send_message(chat_id, STATISTICS_MESSAGE_TEMPLATE.format(monitor_amount, user_amount))
     elif format(query.data) == 'delete':
         delete_confirmation_message(bot, chat_id)
     elif 'del_monitor_' in format(query.data):
@@ -174,11 +194,11 @@ def message_handler(bot, update):
     if update.message.reply_to_message is None:
         return
 
-    if update.message.reply_to_message.text == add_name_message_text:
+    if update.message.reply_to_message.text == ADD_NAME_MESSAGE:
         # Call add method
-        update.message.reply_text(add_message_text + '"' + update.message.text + '"', reply_markup=ForceReply())
+        update.message.reply_text(ADD_ADDRESS_MESSAGE + '"' + update.message.text + '"', reply_markup=ForceReply())
 
-    if add_message_text in update.message.reply_to_message.text:
+    if ADD_ADDRESS_MESSAGE in update.message.reply_to_message.text:
         message = update.message.reply_to_message.text
         if message.count('"') != 2:
             update.message.reply_text('Invalid character in monitor name.')
@@ -198,6 +218,11 @@ def message_handler(bot, update):
         update.message.reply_text('Added monitor "' + name + '" for address ' + address)
         db.insert(monitoring_collection, new_monitor)
 
+        # update statistics
+        bot_statistics['monitor_amount'] += 1
+        if new_monitor['telegram_id'] not in bot_statistics['users']:
+            bot_statistics['users'].append(new_monitor['telegram_id'])
+
 
 def start(bot, update):
     del bot
@@ -206,6 +231,7 @@ def start(bot, update):
 
     keyboard = [[InlineKeyboardButton("Add monitor", callback_data='add')],
                 [InlineKeyboardButton("My monitors", callback_data='list')],
+                [InlineKeyboardButton("Bot statistics", callback_data='stats')],
                 [InlineKeyboardButton("Delete monitor", callback_data='delete')]]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -246,6 +272,9 @@ def main():
 
     crawler = RewardCrawler(updater.bot)
     crawler.start()
+
+    # Initialize statistics
+    initialize_statistics()
 
     # Add command handler to dispatcher
     start_handler = CommandHandler('start', start)
