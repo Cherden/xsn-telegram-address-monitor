@@ -30,6 +30,8 @@ CRAWLER_SLEEP_TIME = 60 * 30
 NEW_TRANSACTION_MESSAGE_TEMPLATE = 'New transaction for "{}" ({}): {} XSN'
 telegram_bot_token = cp['TELEGRAM']['SecretKey']
 
+EXPLORER_BASE_URL = 'localhost:9000'
+
 DATE_FORMAT = '%d/%m/%Y %H:%M:%S'
 ADD_ADDRESS_MESSAGE = 'Enter address for '
 ADD_NAME_MESSAGE = 'Enter monitor name'
@@ -57,7 +59,7 @@ def timestamp_to_date(timestamp):
 
 
 def create_new_monitor(address):
-    url = 'https://xsnexplorer.io/api/addresses/{}'.format(address)
+    url = EXPLORER_BASE_URL + '/api/addresses/{}'.format(address)
     ret_json = requests.get(url).json()
 
     # Address Format invalid or available funds on address = 0
@@ -66,7 +68,7 @@ def create_new_monitor(address):
 
     balance = ret_json['available']
 
-    url = 'https://xsnexplorer.io/api/addresses/{}/transactions'.format(address)
+    url = EXPLORER_BASE_URL + '/api/addresses/{}/transactions'.format(address)
     transactions_json = requests.get(url).json()
 
     total_transactions = transactions_json['total']
@@ -110,7 +112,7 @@ class RewardCrawler(threading.Thread):
 
             for entry in result:
                 address = entry['address']
-                url = 'https://xsnexplorer.io/api/addresses/{}/transactions'.format(address)
+                url = EXPLORER_BASE_URL + '/api/addresses/{}/transactions'.format(address)
                 info_json = requests.get(url).json()
 
                 total_transactions = entry['total_transactions']
