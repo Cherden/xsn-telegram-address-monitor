@@ -3,9 +3,9 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ForceReply
 from mongo_connector import MongoConnector
 from configparser import ConfigParser
 from bson.objectid import ObjectId
+from blockchain_connector import BlockchainConnector
 import threading
 import time
-import requests
 import logging
 import datetime
 import re
@@ -23,14 +23,15 @@ cp.read('config.ini')
 db = MongoConnector()
 db.connect(cp['DATABASE']['Address'], cp['DATABASE']['Name'])
 
+blockchain = BlockchainConnector()
+blockchain.connect(cp['POSTGRES'])
+
 monitoring_collection = cp['DATABASE']['MonitoringCollection']
 
 CRAWLER_SLEEP_TIME = 60 * 30
 
 NEW_TRANSACTION_MESSAGE_TEMPLATE = 'New transaction for "{}" ({}): {} XSN'
 telegram_bot_token = cp['TELEGRAM']['SecretKey']
-
-EXPLORER_BASE_URL = 'http://127.0.0.1:9000'
 
 DATE_FORMAT = '%d/%m/%Y %H:%M:%S'
 ADD_ADDRESS_MESSAGE = 'Enter address for '
@@ -85,22 +86,13 @@ def timestamp_to_date(timestamp):
 
 
 def create_new_monitor(address):
-    url = EXPLORER_BASE_URL + '/addresses/{}'.format(address)
-    ret_json = requests.get(url).json()
+    balance, success = blockchain.get_balance(address)
 
-    # Address Format invalid or available funds on address = 0
-    if ("errors" in ret_json) or ret_json['available'] == 0:
+    if not success:
         return {}, False
 
-    balance = ret_json['available']
-
-    url = EXPLORER_BASE_URL + '/addresses/{}/transactions'.format(address)
-    transactions_json = requests.get(url).json()
-
-    total_transactions = transactions_json['total']
-    last_transaction = 0
-    if total_transactions != 0 and transactions_json['data']:
-        last_transaction = int(transactions_json['data'][0]['time'])
+    total_transactions = blockchain.get_total_transactions(address)
+    last_transaction = blockchain.get_last_transaction(address)
 
     new_monitor = {
         'name': '',
@@ -137,29 +129,22 @@ class RewardCrawler(threading.Thread):
                 continue
 
             for entry in result:
-                address = entry['address']
-                url = EXPLORER_BASE_URL + '/addresses/{}/transactions'.format(address)
-                info_json = requests.get(url).json()
+                new_transactions = blockchain.get_new_transactions(entry['address'], entry['last_transaction'])
 
-                total_transactions = entry['total_transactions']
-                new_transactions = min(info_json['total'] - total_transactions, len(info_json['data']))
-                if new_transactions > 0:
-                    for i in reversed(range(new_transactions)):
-                        data = info_json['data'][i]
+                for transaction in reversed(new_transactions):
+                    timestamp = int(transaction[2])
+                    received = round(transaction[1] - transaction[0], 7)
 
-                        timestamp = int(data['time'])
-                        received = round(data['received'] - data['sent'], 7)
+                    entry['balance'] += received
+                    if entry['last_transaction'] < timestamp:
+                        entry['last_transaction'] = timestamp
 
-                        entry['balance'] += received
-                        if entry['last_transaction'] < timestamp:
-                            entry['last_transaction'] = timestamp
+                    message = NEW_TRANSACTION_MESSAGE_TEMPLATE.format(entry['name'],
+                                                                      timestamp_to_date(timestamp),
+                                                                      float(received))
+                    self.telegram_bot.send_message(chat_id=entry['telegram_id'], text=message)
 
-                        message = NEW_TRANSACTION_MESSAGE_TEMPLATE.format(entry['name'],
-                                                                          timestamp_to_date(timestamp),
-                                                                          float(received))
-                        self.telegram_bot.send_message(chat_id=entry['telegram_id'], text=message)
-
-                    entry['total_transactions'] = info_json['total']
+                entry['total_transactions'] = blockchain.get_total_transactions(entry['address'])
 
                 db.update(self.collection, {'_id': entry['_id']}, entry)
                 time.sleep(0.1)
