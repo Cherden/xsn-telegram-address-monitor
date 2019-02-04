@@ -30,7 +30,7 @@ CRAWLER_SLEEP_TIME = 60 * 30
 NEW_TRANSACTION_MESSAGE_TEMPLATE = 'New transaction for "{}" ({}): {} XSN'
 telegram_bot_token = cp['TELEGRAM']['SecretKey']
 
-EXPLORER_BASE_URL = 'http://localhost:9000'
+EXPLORER_BASE_URL = 'http://127.0.0.1:9000'
 
 DATE_FORMAT = '%d/%m/%Y %H:%M:%S'
 ADD_ADDRESS_MESSAGE = 'Enter address for '
@@ -58,6 +58,7 @@ def update_or_add_new_user_to_statistics(id):
     if not any(users['id'] == id for users in bot_statistics['users']):
         new_user = {'id': id, 'monitors': 1}
         bot_statistics['users'].append(new_user)
+        return
 
     # Increase number of monitors for user
     for users in bot_statistics['users']:
@@ -68,11 +69,11 @@ def update_or_add_new_user_to_statistics(id):
 
 def decrease_or_delete_user_from_statistics(id):
     do_pop = -1
-    for users in bot_statistics['users']:
-        if users['id'] == id:
-            users['monitors'] -= 1
-            if users['monitors'] == 0:
-                do_pop = bot_statistics['users'].index(users)
+    for user in bot_statistics['users']:
+        if user['id'] == id:
+            user['monitors'] -= 1
+            if user['monitors'] == 0:
+                do_pop = bot_statistics['users'].index(user)
             break
 
     if do_pop >= 0:
