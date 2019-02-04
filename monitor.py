@@ -30,7 +30,7 @@ CRAWLER_SLEEP_TIME = 60 * 30
 NEW_TRANSACTION_MESSAGE_TEMPLATE = 'New transaction for "{}" ({}): {} XSN'
 telegram_bot_token = cp['TELEGRAM']['SecretKey']
 
-EXPLORER_BASE_URL = 'localhost:9000'
+EXPLORER_BASE_URL = 'http://localhost:9000'
 
 DATE_FORMAT = '%d/%m/%Y %H:%M:%S'
 ADD_ADDRESS_MESSAGE = 'Enter address for '
