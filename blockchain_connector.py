@@ -25,7 +25,7 @@ class BlockchainConnector:
             return float(entry[1]) - float(entry[2]), True
         except Exception as e:
             self.db.rollback()
-            raise e
+            print(e)
 
         return 0, False
 
@@ -41,7 +41,7 @@ class BlockchainConnector:
                 return int(self.cursor.fetchone()[0])
         except Exception as e:
             self.db.rollback()
-            raise e
+            print(e)
 
         return 0
 
@@ -54,7 +54,7 @@ class BlockchainConnector:
                 return int(self.cursor.fetchone()[0])
         except Exception as e:
             self.db.rollback()
-            raise e
+            print(e)
         return 0
 
 
@@ -67,5 +67,5 @@ class BlockchainConnector:
                 return self.cursor.fetchall()
         except Exception as e:
             self.db.rollback()
-            raise e
+            print(e)
         return []
