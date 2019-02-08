@@ -15,7 +15,8 @@ class BlockchainConnector:
         self.cursor = self.db.cursor()
 
     def get_balance(self, address):
-        self.cursor.execute('SELECT * FROM balances WHERE address=\'' + address + '\'')
+        query = 'SELECT * FROM balances WHERE address=%s'
+        self.cursor.execute(query, (address,))
         if self.cursor.rowcount == 0:
             return 0, False
 
@@ -23,22 +24,24 @@ class BlockchainConnector:
         return float(entry[1]) - float(entry[2]), True
 
     def get_last_transaction(self, address):
-        self.cursor.execute(
-            'SELECT time FROM address_transaction_details WHERE address=\'' + address + '\' ORDER BY time DESC LIMIT (1)')
+        query = 'SELECT time FROM address_transaction_details WHERE address=%s ORDER BY time DESC LIMIT (1)'
+        self.cursor.execute(query, (address,))
         if self.cursor.rowcount == 0:
             return 0
         else:
             return int(self.cursor.fetchone()[0])
 
     def get_total_transactions(self, address):
-        self.cursor.execute('SELECT COUNT(*) FROM address_transaction_details WHERE address=\'' + address + '\'')
+        query = 'SELECT COUNT(*) FROM address_transaction_details WHERE address=%s'
+        self.cursor.execute(query, (address,))
         if self.cursor.rowcount == 0:
             return 0
         else:
             return int(self.cursor.fetchone()[0])
 
     def get_new_transactions(self, address, last_payout):
-        self.cursor.execute('SELECT sent, received, time FROM address_transaction_details WHERE address=\'' + address + '\' AND time > ' + str(last_payout))
+        query = 'SELECT sent, received, time FROM address_transaction_details WHERE address=%s AND time > ' + str(last_payout)
+        self.cursor.execute(query, (address,))
         if self.cursor.rowcount == 0:
             return []
         else:
