@@ -142,7 +142,10 @@ class RewardCrawler(threading.Thread):
                     message = NEW_TRANSACTION_MESSAGE_TEMPLATE.format(entry['name'],
                                                                       timestamp_to_date(timestamp),
                                                                       float(received))
-                    self.telegram_bot.send_message(chat_id=entry['telegram_id'], text=message)
+                    try:
+                        self.telegram_bot.send_message(chat_id=entry['telegram_id'], text=message)
+                    except Exception as e:
+                        print("User blocked bot by id:", entry['telegram_id'])
 
                 # entry['total_transactions'] = blockchain.get_total_transactions(entry['address'])
 
