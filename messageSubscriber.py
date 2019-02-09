@@ -1,4 +1,4 @@
-from telegram.ext import Updater, CommandHandler
+from telegram.ext import Updater
 from mongo_connector import MongoConnector
 from configparser import ConfigParser
 
@@ -8,19 +8,17 @@ cp.read('config.ini')
 
 db = MongoConnector()
 db.connect(cp['DATABASE']['Address'], cp['DATABASE']['Name'])
+telegram_bot_token = cp['TELEGRAM']['SecretKey']
 monitoring_collection = cp['DATABASE']['MonitoringCollection']
 
 
 def main():
-    # Create Updater object and attach dispatcher to it
-    #updater = Updater("786032176:AAESzRUttwWGFExygdBxuu-JuzpixQQDxXw")
-    #dispatcher = updater.dispatcher
+    message = "Due to maintenance work, the bot was temporarily unavailable. \n" \
+              "We apologize for this. The bot is now up and running again. If you encounter any bugs, please report them to us at Discord. \
+               Have a nice weekend."
+    updater = Updater(telegram_bot_token)
+    dispatcher = updater.dispatcher
 
-
-
-    #updater.bot.send_message(433485753, 'Which monitor do you want to delete?')
-
-    #exit()
     id_list = []
     success, monitors = db.find(monitoring_collection, {}, many=True)
 
@@ -29,8 +27,15 @@ def main():
             if not monitor["telegram_id"] in id_list:
                 id_list.append(monitor["telegram_id"])
 
-    print(id_list)
+    for id in id_list:
+        try:
+            updater.bot.send_message(id, message)
 
+        except Exception as e:
+            print("User blocked bot by id:", id)
+
+
+    exit()
 
 if __name__ == '__main__':
     main()
