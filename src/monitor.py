@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 cp = ConfigParser()
 cp.optionxform = str
-cp.read('config.ini')
+cp.read('../config.ini')
 
 db = MongoConnector()
 db.connect(cp['DATABASE']['Address'], cp['DATABASE']['Name'])
