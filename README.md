@@ -11,4 +11,4 @@ This project runs a telegram bot where users can enter XSN addresses and get pus
 * Start the bot in the src folder with `python monitor.py`
 
 
-### Note: This repository was once private and initially just a hack so do not expect good code. We made it open source because we can not run the bot ourselves anymore and hope someone will continue it. We will also not actively develop here anymore. If you want features implemented, create a pull request and we will be happy to merge it.
+### Note: This repository was once private and initially just a hack so do not expect good code. We made it open source because we (i.e. [Simon](https://github.com/Simse92)) can not run the bot ourselves anymore and hope someone will continue it. We will also not actively develop here anymore. If you want features implemented, create a pull request and we will be happy to merge it.
